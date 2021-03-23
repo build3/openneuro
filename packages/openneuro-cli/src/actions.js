@@ -58,12 +58,12 @@ const uploadDataset = async (
   validatorOptions,
   { affirmedDefaced, affirmedConsent },
 ) => {
-  console.log("Starting upload")
+  console.log('Starting upload')
   // const apmTransaction = apm && apm.startTransaction('upload', 'custom')
   // apmTransaction.addLabels({ datasetId })
-  console.log("Getting clinet");
+  console.log('Getting clinet')
   const client = configuredClient()
-  console.log("Validating files");
+  console.log('Validating files')
   await validation(dir, validatorOptions)
   let remoteFiles = []
   if (datasetId) {
@@ -71,7 +71,7 @@ const uploadDataset = async (
     // Get remote files and filter successful files out
     const { data } = await getDatasetFiles(client, datasetId)
     remoteFiles = data.dataset.draft.files
-    console.log("Dataset is " + JSON.stringify(data));
+    console.log('Dataset is ' + JSON.stringify(data))
   } else {
     // Validation -> create dataset -> upload
     datasetId = await createDataset(client)({
@@ -82,25 +82,25 @@ const uploadDataset = async (
   }
   // const apmPrepareUploadSpan =
   //   apmTransaction && apmTransaction.startSpan('prepareUpload')
-  const {files, start} =  await prepareUpload(client, dir, {
+  const { files, start } = await prepareUpload(client, dir, {
     datasetId,
     remoteFiles,
-  });
-  let result = [];
-  let numChunks = 1;
-  const chunkSize = 1000;
-  if (files.length > chunkSize){
-    numChunks = Math.ceil(files.length / chunkSize);
-    console.log(`\nSplitting array of ${files.length} in to ${numChunks} chunks`);
-    for(let i = 0; i < files.length; i += chunkSize){
-      result = [...result, files.slice(i, i + chunkSize < files.length? i + chunkSize : files.length)];
+  })
+  let result = []
+  let numChunks = 1
+  const chunkSize = 1000
+  if (files.length > chunkSize) {
+    numChunks = Math.ceil(files.length / chunkSize)
+    console.log(`\nSplitting array of ${files.length} in to ${numChunks} chunks`)
+    for (let i = 0; i < files.length; i += chunkSize) {
+      result = [...result, files.slice(i, i + chunkSize < files.length ? i + chunkSize : files.length)]
     }
-  }else{
+  } else {
     result = [files]
   }
 
   for (let fileChunk = 0; fileChunk < result.length; ++fileChunk) {
-    console.log(`Processing chunk ${fileChunk + 1} of ${numChunks}`);
+    console.log(`Processing chunk ${fileChunk + 1} of ${numChunks}`)
     const preparedUpload = await authorizeUpload(client, result[fileChunk], datasetId)
     // apmPrepareUploadSpan.end()
     if (preparedUpload) {
@@ -116,11 +116,10 @@ const uploadDataset = async (
       } else {
         console.log('No files remaining to upload, exiting.')
       }
+    }
   }
-
-    // apmTransaction && apmTransaction.end()
-    return datasetId
-  }
+  // apmTransaction && apmTransaction.end()
+  return datasetId
 }
 
 const notifyUploadComplete = (update, datasetId) => {
@@ -188,18 +187,19 @@ export const upload = (dir, cmd) => {
     if (cmd.dataset) {
       // eslint-disable-next-line no-console
       console.log(`Adding files to "${cmd.dataset}"`)
-      inquirer.prompt([ {
+      inquirer.prompt([{
         type: 'confirm',
         name: 'yes',
         default: true,
         message: `This will update dataset ${cmd.dataset}, continue?`,
-      }]).then(({yes}) => {
-        if (yes){
+      }]).then(({ yes }) => {
+        if (yes) {
           return uploadDataset(dir, cmd.dataset, validatorOptions, {
             affirmedDefaced: true,
             affirmedConsent: true,
           })
-        }}).then(datasetId => {
+        }
+      }).then(datasetId => {
         if (datasetId) {
           notifyUploadComplete('update', cmd.dataset)
         }
@@ -253,7 +253,7 @@ export const upload = (dir, cmd) => {
         })
     }
   } catch (e) {
-    console.log("error", e);
+    console.log('error', e)
     handleGenericErrors(e, dir)
     process.exit(1)
   }
