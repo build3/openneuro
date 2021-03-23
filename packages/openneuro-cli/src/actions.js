@@ -60,7 +60,9 @@ const uploadDataset = async (
 ) => {
   const apmTransaction = apm && apm.startTransaction('upload', 'custom')
   apmTransaction.addLabels({ datasetId })
+  console.log("Getting clinet");
   const client = configuredClient()
+  console.log("Validating files");
   await validation(dir, validatorOptions)
   let remoteFiles = []
   if (datasetId) {
