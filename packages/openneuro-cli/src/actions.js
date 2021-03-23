@@ -224,6 +224,7 @@ export const upload = (dir, cmd) => {
         })
     }
   } catch (e) {
+    console.log("error", e);
     handleGenericErrors(e, dir)
     process.exit(1)
   }
