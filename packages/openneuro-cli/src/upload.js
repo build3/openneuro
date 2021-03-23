@@ -18,7 +18,7 @@ import consoleFormat from 'bids-validator/utils/consoleFormat'
  */
 const validatePromise = (dir, options = {}) => {
   return new Promise((resolve, reject) => {
-    resolve({summary: {}})
+    resolve({ summary: {} })
     // validate.BIDS(dir, options, ({ errors, warnings }, summary) => {
     //   if (errors.length + warnings.length === 0) {
     //     resolve({ summary })
@@ -99,36 +99,14 @@ export const prepareUpload = async (
     message: 'Begin upload?',
     default: true,
   })
-  if (answer.start) {
-    console.log(
-      '=======================================================================',
-    )
-    // Filter out local paths in mutation
-    const mutationFiles = files.map(f => ({
-      filename: f.filename,
-      size: f.size,
-    }))
-    const { data } = await client.mutate({
-      mutation: uploads.prepareUpload,
-      variables: {
-        datasetId,
-        uploadId: uploads.hashFileList(datasetId, mutationFiles),
-      },
-    })
-    const id = data.prepareUpload.id
-    // eslint-disable-next-line no-console
-    console.log(`Starting a new upload (${id}) to dataset: '${datasetId}'`)
-    return {
-      id,
-      datasetId: data.prepareUpload.datasetId,
-      token: data.prepareUpload.token,
-      files,
-      endpoint: data.prepareUpload.endpoint,
-    }
+  return {
+    files,
+    start: answer.start,
   }
 }
 
-const authorizeChunk = async (client, files, datasetId) => {
+export const authorizeUpload = async (client, files, datasetId) => {
+  // Filter out local paths in mutation
   const mutationFiles = files.map(f => ({
     filename: f.filename,
     size: f.size,
@@ -140,15 +118,25 @@ const authorizeChunk = async (client, files, datasetId) => {
       uploadId: uploads.hashFileList(datasetId, mutationFiles),
     },
   })
+  const id = data.prepareUpload.id
+  // eslint-disable-next-line no-console
+  console.log(`Starting a new upload (${id}) to dataset: '${datasetId}'`)
+  return {
+    id,
+    datasetId: data.prepareUpload.datasetId,
+    token: data.prepareUpload.token,
+    files,
+    endpoint: data.prepareUpload.endpoint,
+  }
 }
 
 export const uploadFiles = async ({
-  id,
-  datasetId,
-  token,
-  files,
-  endpoint,
-}) => {
+                                    id,
+                                    datasetId,
+                                    token,
+                                    files,
+                                    endpoint,
+                                  }) => {
   const uploadProgress = new cliProgress.SingleBar({
     format:
       datasetId + ' [{bar}] {percentage}% | ETA: {eta}s | {value}/{total}',
@@ -161,58 +149,41 @@ export const uploadFiles = async ({
   })
   const rootUrl = getUrl()
   const controller = new AbortController()
-  let result = [];
-  let numChunks = 1;
-  const chunkSize = 1000;
-  if (files.length > chunkSize){
-    numChunks = Math.ceil(files.length / chunkSize);
-    console.log(`\nSplitting array of ${files.length} in to ${numChunks} chunks`);
-    for(let i = 0; i < files.length; i += chunkSize){
-      result = [...result, files.slice(i, i + chunkSize < files.length? i + chunkSize : files.length)];
-    }
-  }else{
-    result = [files]
-  }
-
-  for (let i = 0; i < result.length; ++i){
-    console.log(`Processing chunk ${i+1} of ${numChunks}`);
-    const requests = result[i].map(file => {
-      // http://localhost:9876/uploads/0/ds001024/0de963b9-1a2a-4bcc-af3c-fef0345780b0/dataset_description.json
-      const encodedFilePath = uploads.encodeFilePath(file.filename)
-      const fileStream = createReadStream(file.path)
-      fileStream.on('error', err => {
-        console.error(err)
-        controller.abort()
-      })
-      fileStream.on('close', () => {
-        if (fileStream.bytesRead === 0) {
-          uploadProgress.stop()
-          console.error(
-            `Warning: "${file.filename}" read zero bytes - check that this file is readable and try again`,
-          )
-          controller.abort()
-        }
-      })
-      return new Request(
-        `${rootUrl}uploads/${endpoint}/${datasetId}/${id}/${encodedFilePath}`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          body: fileStream,
-          signal: controller.signal,
-        },
-      )
+  const requests = files.map(file => {
+    // http://localhost:9876/uploads/0/ds001024/0de963b9-1a2a-4bcc-af3c-fef0345780b0/dataset_description.json
+    const encodedFilePath = uploads.encodeFilePath(file.filename)
+    const fileStream = createReadStream(file.path)
+    fileStream.on('error', err => {
+      console.error(err)
+      controller.abort()
     })
-    await uploads.uploadParallel(
-      requests,
-      uploads.uploadSize(files),
-      uploadProgress,
-      fetch,
+    fileStream.on('close', () => {
+      if (fileStream.bytesRead === 0) {
+        uploadProgress.stop()
+        console.error(
+          `Warning: "${file.filename}" read zero bytes - check that this file is readable and try again`,
+        )
+        controller.abort()
+      }
+    })
+    return new Request(
+      `${rootUrl}uploads/${endpoint}/${datasetId}/${id}/${encodedFilePath}`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: fileStream,
+        signal: controller.signal,
+      },
     )
-  }
-
+  })
+  await uploads.uploadParallel(
+    requests,
+    uploads.uploadSize(files),
+    uploadProgress,
+    fetch,
+  )
   uploadProgress.stop()
 }
 

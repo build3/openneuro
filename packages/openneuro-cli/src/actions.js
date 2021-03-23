@@ -3,7 +3,7 @@ import fs from 'fs'
 import inquirer from 'inquirer'
 import { apm } from './apm.js'
 import { saveConfig, getUrl, getUser } from './config'
-import { validation, prepareUpload, uploadFiles, finishUpload } from './upload'
+import { validation, prepareUpload, uploadFiles, finishUpload, authorizeUpload } from './upload'
 import { getDatasetFiles, createDataset } from './datasets'
 import { getSnapshots } from './snapshots.js'
 import { getDownload } from './download.js'
@@ -59,8 +59,8 @@ const uploadDataset = async (
   { affirmedDefaced, affirmedConsent },
 ) => {
   console.log("Starting upload")
-  const apmTransaction = apm && apm.startTransaction('upload', 'custom')
-  apmTransaction.addLabels({ datasetId })
+  // const apmTransaction = apm && apm.startTransaction('upload', 'custom')
+  // apmTransaction.addLabels({ datasetId })
   console.log("Getting clinet");
   const client = configuredClient()
   console.log("Validating files");
@@ -80,27 +80,45 @@ const uploadDataset = async (
     })
     remoteFiles = [] // New dataset has no remote files
   }
-  const apmPrepareUploadSpan =
-    apmTransaction && apmTransaction.startSpan('prepareUpload')
-  const preparedUpload = await prepareUpload(client, dir, {
+  // const apmPrepareUploadSpan =
+  //   apmTransaction && apmTransaction.startSpan('prepareUpload')
+  const {files, start} =  await prepareUpload(client, dir, {
     datasetId,
     remoteFiles,
-  })
-  apmPrepareUploadSpan.end()
-  if (preparedUpload) {
-    if (preparedUpload.files.length > 1) {
-      const apmUploadFilesSpan =
-        apmTransaction && apmTransaction.startSpan('uploadFiles')
-      await uploadFiles(preparedUpload)
-      apmUploadFilesSpan && apmUploadFilesSpan.end()
-      const apmFinishUploadSpan =
-        apmTransaction && apmTransaction.startSpan('finishUpload')
-      await finishUpload(client, preparedUpload.id)
-      apmUploadFilesSpan && apmFinishUploadSpan.end()
-    } else {
-      console.log('No files remaining to upload, exiting.')
+  });
+  let result = [];
+  let numChunks = 1;
+  const chunkSize = 1000;
+  if (files.length > chunkSize){
+    numChunks = Math.ceil(files.length / chunkSize);
+    console.log(`\nSplitting array of ${files.length} in to ${numChunks} chunks`);
+    for(let i = 0; i < files.length; i += chunkSize){
+      result = [...result, files.slice(i, i + chunkSize < files.length? i + chunkSize : files.length)];
     }
-    apmTransaction && apmTransaction.end()
+  }else{
+    result = [files]
+  }
+
+  for (let fileChunk = 0; fileChunk < result.length; ++fileChunk) {
+    console.log(`Processing chunk ${fileChunk + 1} of ${numChunks}`);
+    const preparedUpload = await authorizeUpload(client, result[fileChunk], datasetId)
+    // apmPrepareUploadSpan.end()
+    if (preparedUpload) {
+      if (preparedUpload.files.length > 1) {
+        // const apmUploadFilesSpan =
+        //   apmTransaction && apmTransaction.startSpan('uploadFiles')
+        await uploadFiles(preparedUpload)
+        // apmUploadFilesSpan && apmUploadFilesSpan.end()
+        // const apmFinishUploadSpan =
+        //   apmTransaction && apmTransaction.startSpan('finishUpload')
+        await finishUpload(client, preparedUpload.id)
+        // apmUploadFilesSpan && apmFinishUploadSpan.end()
+      } else {
+        console.log('No files remaining to upload, exiting.')
+      }
+  }
+
+    // apmTransaction && apmTransaction.end()
     return datasetId
   }
 }
