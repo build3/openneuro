@@ -68,6 +68,7 @@ const uploadDataset = async (
     // Get remote files and filter successful files out
     const { data } = await getDatasetFiles(client, datasetId)
     remoteFiles = data.dataset.draft.files
+    console.log("Dataset is " + JSON.stringify(data));
   } else {
     // Validation -> create dataset -> upload
     datasetId = await createDataset(client)({

@@ -128,6 +128,20 @@ export const prepareUpload = async (
   }
 }
 
+const authorizeChunk = async (client, files, datasetId) => {
+  const mutationFiles = files.map(f => ({
+    filename: f.filename,
+    size: f.size,
+  }))
+  const { data } = await client.mutate({
+    mutation: uploads.prepareUpload,
+    variables: {
+      datasetId,
+      uploadId: uploads.hashFileList(datasetId, mutationFiles),
+    },
+  })
+}
+
 export const uploadFiles = async ({
   id,
   datasetId,
@@ -149,11 +163,12 @@ export const uploadFiles = async ({
   const controller = new AbortController()
   let result = [];
   let numChunks = 1;
-  if (files.length > 500){
-    numChunks = Math.ceil(files.length / 500);
+  const chunkSize = 1000;
+  if (files.length > chunkSize){
+    numChunks = Math.ceil(files.length / chunkSize);
     console.log(`\nSplitting array of ${files.length} in to ${numChunks} chunks`);
-    for(let i = 0; i < files.length; i += 500){
-      result = [...result, files.slice(i, i + 500 < files.length? i + 500 : files.length)];
+    for(let i = 0; i < files.length; i += chunkSize){
+      result = [...result, files.slice(i, i + chunkSize < files.length? i + chunkSize : files.length)];
     }
   }else{
     result = [files]
