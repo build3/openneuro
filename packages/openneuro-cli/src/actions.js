@@ -170,7 +170,15 @@ export const upload = (dir, cmd) => {
     if (cmd.dataset) {
       // eslint-disable-next-line no-console
       console.log(`Adding files to "${cmd.dataset}"`)
-      uploadDataset(dir, cmd.dataset, validatorOptions).then(datasetId => {
+      inquirer.prompt([ {
+        type: 'confirm',
+        name: 'yes',
+        default: true,
+        message: `This will update dataset ${cmd.dataset}, continue?`,
+      }]).then(({yes}) => {
+        if (yes){
+          return uploadDataset(dir, cmd.dataset, validatorOptions)
+        }}).then(datasetId => {
         if (datasetId) {
           notifyUploadComplete('update', cmd.dataset)
         }
