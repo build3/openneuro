@@ -58,6 +58,7 @@ const uploadDataset = async (
   validatorOptions,
   { affirmedDefaced, affirmedConsent },
 ) => {
+  console.log("Starting upload")
   const apmTransaction = apm && apm.startTransaction('upload', 'custom')
   apmTransaction.addLabels({ datasetId })
   console.log("Getting clinet");
