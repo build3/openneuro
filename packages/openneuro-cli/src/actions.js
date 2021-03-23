@@ -177,7 +177,10 @@ export const upload = (dir, cmd) => {
         message: `This will update dataset ${cmd.dataset}, continue?`,
       }]).then(({yes}) => {
         if (yes){
-          return uploadDataset(dir, cmd.dataset, validatorOptions)
+          return uploadDataset(dir, cmd.dataset, validatorOptions, {
+            affirmedDefaced: true,
+            affirmedConsent: true,
+          })
         }}).then(datasetId => {
         if (datasetId) {
           notifyUploadComplete('update', cmd.dataset)
