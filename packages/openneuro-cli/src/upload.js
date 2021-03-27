@@ -149,6 +149,7 @@ export const uploadFiles = async ({
   })
   const rootUrl = getUrl()
   const controller = new AbortController()
+  let streams = [];
   const requests = files.map(file => {
     // http://localhost:9876/uploads/0/ds001024/0de963b9-1a2a-4bcc-af3c-fef0345780b0/dataset_description.json
     const encodedFilePath = uploads.encodeFilePath(file.filename)
@@ -166,6 +167,7 @@ export const uploadFiles = async ({
         controller.abort()
       }
     })
+    streams = [...streams, fileStream];
     return new Request(
       `${rootUrl}uploads/${endpoint}/${datasetId}/${id}/${encodedFilePath}`,
       {
@@ -178,12 +180,21 @@ export const uploadFiles = async ({
       },
     )
   })
-  await uploads.uploadParallel(
-    requests,
-    uploads.uploadSize(files),
-    uploadProgress,
-    fetch,
-  )
+  try{
+    await uploads.uploadParallel(
+      requests,
+      uploads.uploadSize(files),
+      uploadProgress,
+      fetch,
+    )
+  }catch(err){
+    console.log(`Error with upload, closing streams`)
+    for (let i = 0; i < streams.length; ++i){
+      streams[i].destroy();
+    }
+    throw err;
+  }
+
   uploadProgress.stop()
 }
 

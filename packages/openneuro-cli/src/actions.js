@@ -58,12 +58,9 @@ const uploadDataset = async (
   validatorOptions,
   { affirmedDefaced, affirmedConsent },
 ) => {
-  console.log('Starting upload')
   // const apmTransaction = apm && apm.startTransaction('upload', 'custom')
   // apmTransaction.addLabels({ datasetId })
-  console.log('Getting clinet')
   const client = configuredClient()
-  console.log('Validating files')
   await validation(dir, validatorOptions)
   let remoteFiles = []
   if (datasetId) {
@@ -86,6 +83,7 @@ const uploadDataset = async (
     datasetId,
     remoteFiles,
   })
+  // apmPrepareUploadSpan.end()
   let result = []
   let numChunks = 1
   const chunkSize = 1000
@@ -98,25 +96,31 @@ const uploadDataset = async (
   } else {
     result = [files]
   }
-
-  for (let fileChunk = 0; fileChunk < result.length; ++fileChunk) {
+  let fileChunk = 0;
+  while (fileChunk < result.length) {
     console.log(`Processing chunk ${fileChunk + 1} of ${numChunks}`)
-    const preparedUpload = await authorizeUpload(client, result[fileChunk], datasetId)
-    // apmPrepareUploadSpan.end()
-    if (preparedUpload) {
-      if (preparedUpload.files.length > 1) {
-        // const apmUploadFilesSpan =
-        //   apmTransaction && apmTransaction.startSpan('uploadFiles')
-        await uploadFiles(preparedUpload)
-        // apmUploadFilesSpan && apmUploadFilesSpan.end()
-        // const apmFinishUploadSpan =
-        //   apmTransaction && apmTransaction.startSpan('finishUpload')
-        await finishUpload(client, preparedUpload.id)
-        // apmUploadFilesSpan && apmFinishUploadSpan.end()
-      } else {
-        console.log('No files remaining to upload, exiting.')
+    try{
+      const preparedUpload = await authorizeUpload(client, result[fileChunk], datasetId)
+
+      if (preparedUpload) {
+        if (preparedUpload.files.length > 1) {
+          // const apmUploadFilesSpan =
+          //   apmTransaction && apmTransaction.startSpan('uploadFiles')
+          await uploadFiles(preparedUpload)
+          // apmUploadFilesSpan && apmUploadFilesSpan.end()
+          // const apmFinishUploadSpan =
+          //   apmTransaction && apmTransaction.startSpan('finishUpload')
+          await finishUpload(client, preparedUpload.id)
+          // apmUploadFilesSpan && apmFinishUploadSpan.end()
+          ++fileChunk
+        } else {
+          console.log('No files remaining to upload, exiting.')
+        }
       }
+    }catch(err){
+      console.log(`Error uploading chunk ${fileChunk}, will retry`, err);
     }
+
   }
   // apmTransaction && apmTransaction.end()
   return datasetId
